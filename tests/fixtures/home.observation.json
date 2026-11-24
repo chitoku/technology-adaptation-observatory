@@ -1,0 +1,54 @@
+{
+  "capture": {
+    "access": "observed",
+    "body_kind": "complete_html",
+    "capture_profile": "synthetic/1",
+    "captured_at": "2026-11-23T00:00:00Z",
+    "final_url": "https://airline.example/ja/",
+    "http_status": 200,
+    "requested_url": "https://airline.example/ja/",
+    "snapshot_schema_version": "1.0.0"
+  },
+  "confidence": {
+    "annotations": [
+      {
+        "level": "direct",
+        "signal_id": "transport.landed_https"
+      },
+      {
+        "level": "direct",
+        "signal_id": "html.root_lang_declared"
+      },
+      {
+        "level": "direct",
+        "signal_id": "html.viewport_device_width"
+      }
+    ],
+    "policy_version": "1.0.0"
+  },
+  "evidence": [
+    {
+      "locator": "/final_url",
+      "reason": "final_url_observed",
+      "signal_id": "transport.landed_https",
+      "state": "present"
+    },
+    {
+      "locator": "/html#html[lang]",
+      "reason": "complete_html",
+      "signal_id": "html.root_lang_declared",
+      "state": "present"
+    },
+    {
+      "locator": "/html#head/meta[viewport]",
+      "reason": "complete_html",
+      "signal_id": "html.viewport_device_width",
+      "state": "present"
+    }
+  ],
+  "evidence_ruleset_version": "1.0.0",
+  "observation_id": "sha256:2509d3655884da7f02a5bfbed64c3f569d680e453eed0345a53e318510fe91a3",
+  "observation_schema_version": "1.0.0",
+  "producer_version": "0.1.0",
+  "source_sha256": "dde9cbf4e427cb66873fc38586612628d6aeba4984d5d19e027f32a3d53fdeff"
+}

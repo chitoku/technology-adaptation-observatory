@@ -1,0 +1,35 @@
+{
+  "manifest_version": "0.1.0",
+  "surface": "consumer_homepage",
+  "targets": [
+    {
+      "target_id": "ana-ja-home",
+      "operator": "All Nippon Airways",
+      "market": "JP",
+      "locale": "ja-JP",
+      "url": "https://www.ana.co.jp/ja/jp/",
+      "robots_url": "https://www.ana.co.jp/robots.txt",
+      "terms_url": "https://www.ana.co.jp/ja/jp/guide/terms/website/",
+      "admission": "pending_review"
+    },
+    {
+      "target_id": "jal-ja-home",
+      "operator": "Japan Airlines",
+      "market": "JP",
+      "locale": "ja-JP",
+      "url": "https://www.jal.co.jp/ja-jp/",
+      "reference_url": "https://www.jal.co.jp/jp/ja/",
+      "robots_url": "https://www.jal.co.jp/robots.txt",
+      "terms_url": "https://www.jal.co.jp/jp/ja/footer/policy/",
+      "admission": "pending_review"
+    },
+    {
+      "target_id": "delta-en-home",
+      "operator": "Delta Air Lines",
+      "market": "US",
+      "locale": "en-US",
+      "url": "https://www.delta.com/us/en",
+      "admission": "candidate"
+    }
+  ]
+}

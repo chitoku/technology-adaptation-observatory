@@ -1,0 +1,11 @@
+{
+  "snapshot_schema_version": "1.0.0",
+  "captured_at": "2026-11-23T00:00:00Z",
+  "capture_profile": "synthetic/1",
+  "requested_url": "https://airline.example/ja/",
+  "final_url": "https://airline.example/ja/",
+  "access": "observed",
+  "http_status": 200,
+  "body_kind": "complete_html",
+  "html": "<!doctype html><html lang=\"ja\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Fixture</title></head><body>Example airline.</body></html>"
+}
