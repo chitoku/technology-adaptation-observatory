@@ -86,8 +86,13 @@ def read_json(raw, label):
 
 
 def _validate_capture_context(context, access):
-    if not isinstance(context, dict) or context.keys() != CAPTURE_CONTEXT_FIELDS:
+    if not isinstance(context, dict) or context.keys() - {"robots_status", "robots_policy"} != CAPTURE_CONTEXT_FIELDS:
         raise ValueError("invalid capture_context fields")
+    robots_status = context.get("robots_status")
+    if robots_status is not None and (type(robots_status) is not int or not 100 <= robots_status <= 599):
+        raise ValueError("invalid capture_context robots_status")
+    if "robots_policy" in context and context["robots_policy"] not in ("standard", "best_effort"):
+        raise ValueError("invalid capture_context robots_policy")
     for name, pattern in (
         ("target_id", TARGET_ID), ("manifest_version", VERSION), ("region", REGION),
         ("accept_language", LANGUAGE), ("python_version", VERSION),

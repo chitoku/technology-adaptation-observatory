@@ -27,6 +27,8 @@ ROBOTS_BYTES = 512 * 1024
 MAX_REDIRECTS = 2
 REDIRECT_STATUS = {301, 302, 303, 307, 308}
 DENIED_STATUS = {401, 403, 429, 451}
+MISSING_ROBOTS_STATUS = {404, 410}
+UNAVAILABLE_ROBOTS_ENDPOINT_STATUS = {403, 444}
 DEFERRED_ADMISSIONS = ("candidate", "pending_review", "permission_required")
 HTML_CODECS = {"ascii", "cp1252", "cp932", "euc_jp", "iso8859-1", "shift_jis", "utf-8", "utf-8-sig"}
 DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
@@ -158,7 +160,10 @@ def _approved_scope(target, now):
         _public_url(url).netloc != base.netloc or url == robots_url for url in redirects
     ):
         raise ValueError("redirect_urls must contain approved same-origin document URLs")
-    return reviewed_on, " ".join(title.split()), frozenset(redirects)
+    robots_policy = review.get("robots_policy", "standard")
+    if robots_policy not in ("standard", "best_effort"):
+        raise ValueError("invalid robots_policy")
+    return reviewed_on, " ".join(title.split()), frozenset(redirects), robots_policy
 
 
 def _decode_html(response):
@@ -173,7 +178,7 @@ def _capture_page(snapshot, target, approved_redirects, expected_title, rules, r
     url = target["url"]
     visited = set()
     for redirect_count in range(MAX_REDIRECTS + 1):
-        if not rules.can_fetch(url, PRODUCT_TOKEN):
+        if rules is not None and not rules.can_fetch(url, PRODUCT_TOKEN):
             return _record(snapshot, "not_collected", "robots_disallowed")
         visited.add(url)
         try:
@@ -240,10 +245,11 @@ def _robots_text(response):
     ):
         raise ValueError("robots response unavailable")
     text = response.body.decode("utf-8-sig")
-    for line in text.splitlines():
-        directive = line.partition("#")[0].strip()
-        if directive and not ROBOTS_DIRECTIVE.match(directive):
-            raise ValueError("unexpected robots response")
+    # Preserve the valid records even if an unrelated line is malformed.
+    directives = [line.partition("#")[0].strip() for line in text.splitlines()]
+    meaningful = [line for line in directives if line]
+    if meaningful and not any(ROBOTS_DIRECTIVE.match(line) for line in meaningful):
+        raise ValueError("unexpected robots response")
     return text
 
 
@@ -267,25 +273,38 @@ def capture(target_id, manifest_path, region, request=get_document):
             "python_version": platform.python_version(),
             "user_agent": USER_AGENT,
             "robots_parser_version": None,
+            "robots_status": None,
             "reviewed_on": None,
         },
     }
     if target["admission"] != "approved":
         return _record(snapshot, "not_collected", target["admission"])
 
-    reviewed_on, expected_title, redirects = _approved_scope(target, now)
+    reviewed_on, expected_title, redirects, robots_policy = _approved_scope(target, now)
     try:
         from protego import Protego
     except ModuleNotFoundError as error:
         raise ValueError("install the capture extra to collect an approved target") from error
-    snapshot["capture_context"].update(reviewed_on=reviewed_on, robots_parser_version=version("Protego"))
+    snapshot["capture_context"].update(
+        reviewed_on=reviewed_on, robots_parser_version=version("Protego"), robots_policy=robots_policy,
+    )
+    rules = None
     try:
         robots = request(target["robots_url"], target["locale"], "text/plain", ROBOTS_BYTES)
-        rules = Protego.parse(_robots_text(robots))
+        snapshot["capture_context"]["robots_status"] = robots.status
+        unavailable_endpoint = (
+            robots_policy == "best_effort" and robots.status in UNAVAILABLE_ROBOTS_ENDPOINT_STATUS
+        )
+        if robots.status not in MISSING_ROBOTS_STATUS and not unavailable_endpoint:
+            rules = Protego.parse(_robots_text(robots))
     except (OSError, http.client.HTTPException, ValueError):
         return _record(snapshot, "not_collected", "robots_unavailable")
-    if rules.crawl_delay(PRODUCT_TOKEN) or rules.request_rate(PRODUCT_TOKEN) or rules.visit_time(PRODUCT_TOKEN):
+    if rules is not None and (
+        rules.crawl_delay(PRODUCT_TOKEN) or rules.request_rate(PRODUCT_TOKEN) or rules.visit_time(PRODUCT_TOKEN)
+    ):
         return _record(snapshot, "not_collected", "robots_schedule_present")
+    if unavailable_endpoint:
+        redirects = frozenset()
     return _capture_page(snapshot, target, redirects, expected_title, rules, request)
 
 

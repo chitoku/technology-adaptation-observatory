@@ -111,13 +111,48 @@ class CaptureTests(unittest.TestCase):
             (Response(200, media_type="text/plain", truncated=True), "robots_unavailable"),
             (Response(200, media_type="text/html"), "robots_unavailable"),
             (Response(429), "robots_unavailable"),
-            (Response(404), "robots_unavailable"),
+            (Response(503), "robots_unavailable"),
+            (Response(403), "robots_unavailable"),
             (TimeoutError(), "robots_unavailable"),
         ):
             with self.subTest(reason=reason, status=getattr(robots, "status", None)):
                 snapshot, request = self.run_capture(robots)
                 self.assert_reason(snapshot, "not_collected", reason)
                 request.assert_called_once_with(ROBOTS, "en-US", "text/plain", ROBOTS_BYTES)
+
+    def test_missing_robots_allows_one_reviewed_page_request(self):
+        for status in (404, 410):
+            with self.subTest(status=status):
+                snapshot, request = self.run_capture(Response(status), DOCUMENT)
+                self.assert_reason(snapshot, "observed", "page_verified")
+                self.assertEqual(snapshot["capture_context"]["robots_status"], status)
+                self.assertEqual([args[0] for args, _ in request.call_args_list], [ROBOTS, HOME])
+
+    def test_best_effort_attempts_exact_page_when_robots_endpoint_rejects_request(self):
+        self.target["review"]["robots_policy"] = "best_effort"
+        for status in (403, 444):
+            with self.subTest(status=status):
+                snapshot, request = self.run_capture(Response(status), Response(302, location="/one"))
+                self.assert_reason(snapshot, "failed", "redirect_not_approved")
+                self.assertEqual(snapshot["capture_context"]["robots_status"], status)
+                self.assertEqual(snapshot["capture_context"]["robots_policy"], "best_effort")
+                self.assertEqual([args[0] for args, _ in request.call_args_list], [ROBOTS, HOME])
+        for robots, reason in (
+            (Response(429), "robots_unavailable"),
+            (Response(503), "robots_unavailable"),
+            (Response(200, media_type="text/plain", body=b"User-agent: *\nDisallow: /en/\n"),
+             "robots_disallowed"),
+        ):
+            with self.subTest(status=robots.status):
+                snapshot, request = self.run_capture(robots)
+                self.assert_reason(snapshot, "not_collected", reason)
+                request.assert_called_once_with(ROBOTS, "en-US", "text/plain", ROBOTS_BYTES)
+
+    def test_parseable_robots_rules_survive_an_unrelated_malformed_line(self):
+        rules = b"User-agent: *\nThis line is malformed\nDisallow: /en/\n"
+        snapshot, request = self.run_capture(Response(200, media_type="text/plain", body=rules))
+        self.assert_reason(snapshot, "not_collected", "robots_disallowed")
+        request.assert_called_once_with(ROBOTS, "en-US", "text/plain", ROBOTS_BYTES)
 
     def test_approved_redirect_is_checked_against_robots(self):
         robots = Response(200, media_type="text/plain", body=b"User-agent: *\nDisallow: /one\n")
