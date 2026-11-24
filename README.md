@@ -20,4 +20,4 @@ python3 -m unittest discover -s tests -v
 | [観測仕様](docs/methodology.md) | 入出力、証拠、確度、評価基準のバージョン |
 | [Phase 1 PR計画](docs/phase-1.md) | GitHub / Codexに引き継ぐ作業範囲、受け入れテスト |
 | [観測JSON Schema](schemas/observation-v1.0.0.schema.json) | 出力の機械可読契約 |
-| [パイロット候補台帳](pilot/airlines-v0.1.0.json) | 対象ページ、地域、ポリシー参照、収集の審査状態 |
+| [パイロット候補台帳](pilot/airlines-v0.2.0.json) | 対象ページ、地域、ポリシー参照、収集の審査状態 |

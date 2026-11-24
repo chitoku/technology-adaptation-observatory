@@ -18,6 +18,7 @@
 - **ANA**。日本向け公開ホームが閲覧可能。公式のrobots.txtとサイト利用規約を確認した。規約の転用に関する記述を踏まえ、HTML保存と成果の掲載範囲は事前審査に回す。 [ホーム](https://www.ana.co.jp/ja/jp/) · [robots.txt](https://www.ana.co.jp/robots.txt) · [利用規約](https://www.ana.co.jp/ja/jp/guide/terms/website/)
 - **JAL**。旧経路から同じホストの `/ja-jp/` への転送を資料確認時に観測した。公式のrobots.txtと利用規約を確認した。転送前後をプログラムで辿る場合は両経路を先に審査する。 [旧経路](https://www.jal.co.jp/jp/ja/) · [ホーム](https://www.jal.co.jp/ja-jp/) · [robots.txt](https://www.jal.co.jp/robots.txt) · [利用規約](https://www.jal.co.jp/jp/ja/footer/policy/)
 - **Delta**。米国向け公開ホームの所在を確認した。収集可否と比較条件の事前審査は未実施。 [ホーム](https://www.delta.com/us/en)
+- **American Airlines**。Deltaと同じ用途の米国向け公開ホームを追加候補とした。公式規約はコンテンツのスクレイピングや抽出に明示の書面契約を求めている。台帳は `permission_required` とし、書面で許可を確認できるまでTAOでの収集を保留する。 [ホーム](https://www.aa.com/homePage.do) · [利用規約](https://www.aa.com/web/i18n/customer-service/support/legal-information.html)
 
 資料確認は収集の承認と分けて記録する。対象URL・運用主体ごとに、利用条件、robotsの現在値と適用エージェント、転送先、保存する項目、再配布範囲、審査日を記録する。規約上の扱いが不明な場合は保留し、許可済み公開データや合成入力で開発を進める。robotsは収集可否の判定に使い、権利上の判断は別途行う。 [Robots Exclusion Protocol](https://www.rfc-editor.org/rfc/rfc9309)
 

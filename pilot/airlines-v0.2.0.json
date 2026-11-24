@@ -1,5 +1,5 @@
 {
-  "manifest_version": "0.1.0",
+  "manifest_version": "0.2.0",
   "surface": "consumer_homepage",
   "targets": [
     {
@@ -30,6 +30,16 @@
       "locale": "en-US",
       "url": "https://www.delta.com/us/en",
       "admission": "candidate"
+    },
+    {
+      "target_id": "american-en-home",
+      "operator": "American Airlines",
+      "market": "US",
+      "locale": "en-US",
+      "url": "https://www.aa.com/homePage.do",
+      "robots_url": "https://www.aa.com/robots.txt",
+      "terms_url": "https://www.aa.com/web/i18n/customer-service/support/legal-information.html",
+      "admission": "permission_required"
     }
   ]
 }

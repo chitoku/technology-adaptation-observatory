@@ -31,4 +31,4 @@ CodexにPR 1を引き継ぐときの依頼文
 
 ### 参照
 
-[研究設計](phase-0.md) · [実現性とライセンス](feasibility.md) · [観測仕様](methodology.md) · [パイロット候補](../pilot/airlines-v0.1.0.json)
+[研究設計](phase-0.md) · [実現性とライセンス](feasibility.md) · [観測仕様](methodology.md) · [パイロット候補](../pilot/airlines-v0.2.0.json)
