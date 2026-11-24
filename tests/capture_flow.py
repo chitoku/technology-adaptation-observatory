@@ -41,6 +41,7 @@ class CaptureTests(unittest.TestCase):
         self.target = {
             "target_id": "airline-en-home",
             "url": HOME,
+            "market": "US",
             "locale": "en-US",
             "terms_url": HOST + "/terms",
             "robots_url": ROBOTS,
@@ -299,7 +300,23 @@ class CaptureTests(unittest.TestCase):
         schema = json.loads((ROOT / "schemas" / "observation-v1.1.0.schema.json").read_bytes())
         Draft202012Validator.check_schema(schema)
         Draft202012Validator(schema, format_checker=FormatChecker()).validate(observation)
+        observation_file = self.directory / "observed.json"
+        observation_file.write_text(printed.getvalue(), encoding="utf-8")
+        evaluated = io.StringIO()
+        with contextlib.redirect_stdout(evaluated):
+            self.assertEqual(main(["evaluate", str(observation_file), "--rubric-version", "0.1.0"]), 0)
+        assessment = json.loads(evaluated.getvalue())
+        self.assertEqual(assessment["result"], "met")
+        exported = io.StringIO()
+        with contextlib.redirect_stdout(exported):
+            self.assertEqual(main([
+                "export", "--manifest", str(self.manifest), "--rubric-version", "0.1.0", str(observation_file),
+            ]), 0)
+        data, summary = [json.loads(line) for line in exported.getvalue().splitlines()]
+        self.assertEqual(data["assessment"], assessment)
+        self.assertEqual(summary["valid_observation_count"], 1)
         for marker in (b"secret-cookie", b"private-query", b"private-fragment", b"private-credential",
                        b"Secret body text", TITLE.encode()):
             self.assertNotIn(marker, raw)
             self.assertNotIn(marker, printed.getvalue().encode())
+            self.assertNotIn(marker, exported.getvalue().encode())

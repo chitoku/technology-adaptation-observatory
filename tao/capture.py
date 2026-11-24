@@ -15,9 +15,9 @@ from time import monotonic
 from urllib.parse import urljoin
 
 from .replay import (
-    CAPTURE_SCHEMA_VERSION, LANGUAGE, MAX_HTML_BYTES, MAX_SNAPSHOT_BYTES,
+    CAPTURE_SCHEMA_VERSION, LANGUAGE, MAX_HTML_BYTES,
     PUBLIC_HTTP_PROFILE, REGION, REVIEW_DATE, TARGET_ID, VERSION,
-    PageDeclarations, read_json, validate_url,
+    PageDeclarations, read_json_file, validate_url,
 )
 
 PRODUCT_TOKEN = "TAOObservatory"
@@ -114,8 +114,7 @@ def _public_url(value):
 def _target_from_manifest(manifest_path, target_id):
     if not TARGET_ID.fullmatch(target_id):
         raise ValueError("invalid target ID")
-    with manifest_path.open("rb") as stream:
-        manifest = read_json(stream.read(MAX_SNAPSHOT_BYTES + 1), "manifest")
+    manifest = read_json_file(manifest_path, "manifest")
     if not isinstance(manifest, dict):
         raise ValueError("expected a manifest JSON object")
     manifest_version = manifest.get("manifest_version")

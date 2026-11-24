@@ -18,9 +18,9 @@ CONFIDENCE_POLICY_VERSION = "1.0.0"
 MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
 MAX_HTML_BYTES = 1024 * 1024
 
-SNAPSHOT_FIELDS = {
+CAPTURE_FIELDS = {
     "snapshot_schema_version", "captured_at", "capture_profile", "requested_url",
-    "final_url", "access", "http_status", "body_kind", "html",
+    "final_url", "access", "http_status", "body_kind",
 }
 CAPTURE_CONTEXT_FIELDS = {
     "target_id", "manifest_version", "region", "accept_language", "system",
@@ -85,6 +85,11 @@ def read_json(raw, label):
         raise ValueError(f"{label} must be a valid UTF-8 JSON document") from error
 
 
+def read_json_file(path, label):
+    with path.open("rb") as stream:
+        return read_json(stream.read(MAX_SNAPSHOT_BYTES + 1), label)
+
+
 def _validate_capture_context(context, access):
     if not isinstance(context, dict) or context.keys() - {"robots_status", "robots_policy"} != CAPTURE_CONTEXT_FIELDS:
         raise ValueError("invalid capture_context fields")
@@ -113,16 +118,15 @@ def _validate_capture_context(context, access):
         raise ValueError("invalid capture_context user_agent")
 
 
-def _read_snapshot(raw):
-    snapshot = read_json(raw, "snapshot")
-    if not isinstance(snapshot, dict):
-        raise ValueError("expected a snapshot JSON object")
-    automated = snapshot.get("snapshot_schema_version") == CAPTURE_SCHEMA_VERSION
+def validate_capture_metadata(metadata):
+    if not isinstance(metadata, dict):
+        raise ValueError("expected a capture metadata JSON object")
+    automated = metadata.get("snapshot_schema_version") == CAPTURE_SCHEMA_VERSION
     expected_version = CAPTURE_SCHEMA_VERSION if automated else SNAPSHOT_SCHEMA_VERSION
-    expected_fields = SNAPSHOT_FIELDS | {"capture_context"} if automated else SNAPSHOT_FIELDS
-    if snapshot.keys() != expected_fields or snapshot["snapshot_schema_version"] != expected_version:
-        raise ValueError("expected the exact fields for a supported snapshot schema")
-    timestamp = snapshot["captured_at"]
+    expected_fields = CAPTURE_FIELDS | {"capture_context"} if automated else CAPTURE_FIELDS
+    if metadata.keys() != expected_fields or metadata["snapshot_schema_version"] != expected_version:
+        raise ValueError("expected the exact capture fields for a supported snapshot schema")
+    timestamp = metadata["captured_at"]
     if not isinstance(timestamp, str) or not UTC_TIMESTAMP.fullmatch(timestamp):
         raise ValueError("captured_at must be a UTC timestamp with second precision")
     try:
@@ -131,33 +135,43 @@ def _read_snapshot(raw):
         raise ValueError("captured_at has an invalid date or time") from error
 
     profiles = (PUBLIC_HTTP_PROFILE,) if automated else ("synthetic/1", "manual-public-http/1")
-    if snapshot["capture_profile"] not in profiles:
+    if metadata["capture_profile"] not in profiles:
         raise ValueError("unrecognized capture_profile")
-    validate_url(snapshot["requested_url"], ("https",))
-    if snapshot["final_url"] is not None:
-        validate_url(snapshot["final_url"], ("https",) if automated else ("http", "https"))
-    status = snapshot["http_status"]
+    validate_url(metadata["requested_url"], ("https",))
+    if metadata["final_url"] is not None:
+        validate_url(metadata["final_url"], ("https",) if automated else ("http", "https"))
+    status = metadata["http_status"]
     if status is not None and (type(status) is not int or not 100 <= status <= 599):
         raise ValueError("http_status must be an integer between 100 and 599 or null")
 
-    access = snapshot["access"]
+    access = metadata["access"]
     if access not in ("observed", "blocked", "failed", "not_collected"):
         raise ValueError("unrecognized access")
     if automated:
-        _validate_capture_context(snapshot["capture_context"], access)
+        _validate_capture_context(metadata["capture_context"], access)
     if access == "observed" and (
-        status is None or not 200 <= status < 300 or snapshot["final_url"] is None
+        status is None or not 200 <= status < 300 or metadata["final_url"] is None
     ):
         raise ValueError("observed requires a final URL and a 2xx HTTP status")
-    if access == "not_collected" and (status is not None or snapshot["final_url"] is not None):
+    if access == "not_collected" and (status is not None or metadata["final_url"] is not None):
         raise ValueError("not_collected cannot include response metadata")
 
-    body_kind = snapshot["body_kind"]
+    body_kind = metadata["body_kind"]
     if body_kind not in ("complete_html", "truncated_html", "other", "unavailable"):
         raise ValueError("unrecognized body_kind")
     if access != "observed" and body_kind != "unavailable":
         raise ValueError("only an observed page can include a response body")
+    return CAPTURE_SCHEMA_VERSION if automated else OBSERVATION_SCHEMA_VERSION
+
+
+def _read_snapshot(raw):
+    snapshot = read_json(raw, "snapshot")
+    if not isinstance(snapshot, dict) or "html" not in snapshot:
+        raise ValueError("expected a snapshot JSON object with an html field")
+    metadata = {key: value for key, value in snapshot.items() if key != "html"}
+    schema_version = validate_capture_metadata(metadata)
     html = snapshot["html"]
+    body_kind = metadata["body_kind"]
     if body_kind in ("complete_html", "truncated_html"):
         if not isinstance(html, str):
             raise ValueError("HTML captures require an html string")
@@ -169,7 +183,7 @@ def _read_snapshot(raw):
             raise ValueError("html exceeds 1 MiB")
     elif html is not None:
         raise ValueError("html must be null when the body is unavailable or non-HTML")
-    return snapshot
+    return metadata, html, schema_version
 
 
 class PageDeclarations(HTMLParser):
@@ -245,7 +259,7 @@ def _evidence(signal_id, locator, value, reason):
     }
 
 
-def _derive_evidence(snapshot):
+def _derive_evidence(snapshot, html):
     access = snapshot["access"]
     body_kind = snapshot["body_kind"]
     https = language = viewport = None
@@ -256,7 +270,7 @@ def _derive_evidence(snapshot):
         transport_reason = "final_url_observed"
         if body_kind == "complete_html":
             page = PageDeclarations()
-            page.feed(snapshot["html"])
+            page.feed(html)
             page.close()
             language = page.root_language
             language_reason = "complete_html" if language is not None else "no_explicit_html_element"
@@ -269,20 +283,22 @@ def _derive_evidence(snapshot):
     ]
 
 
+def observation_id(schema_version, ruleset_version, source_sha256):
+    identity = f"{schema_version}:{ruleset_version}:{source_sha256}"
+    return "sha256:" + hashlib.sha256(identity.encode("ascii")).hexdigest()
+
+
 def replay(raw):
     """Return a deterministic observation for the given UTF-8 JSON bytes."""
-    snapshot = _read_snapshot(raw)
+    capture, html, schema_version = _read_snapshot(raw)
     capture_hash = hashlib.sha256(raw).hexdigest()
-    evidence = _derive_evidence(snapshot)
-    schema_version = (CAPTURE_SCHEMA_VERSION if "capture_context" in snapshot
-                      else OBSERVATION_SCHEMA_VERSION)
-    identity = f"{schema_version}:{EVIDENCE_RULESET_VERSION}:{capture_hash}"
+    evidence = _derive_evidence(capture, html)
     return {
-        "observation_id": "sha256:" + hashlib.sha256(identity.encode("ascii")).hexdigest(),
+        "observation_id": observation_id(schema_version, EVIDENCE_RULESET_VERSION, capture_hash),
         "observation_schema_version": schema_version,
         "producer_version": __version__,
         "evidence_ruleset_version": EVIDENCE_RULESET_VERSION,
-        "capture": {key: snapshot[key] for key in sorted(snapshot.keys() - {"html"})},
+        "capture": {key: capture[key] for key in sorted(capture)},
         "source_sha256": capture_hash,
         "evidence": evidence,
         "confidence": {

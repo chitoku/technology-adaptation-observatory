@@ -1,0 +1,11 @@
+{
+  "manifest_version": "0.1.0",
+  "surface": "consumer_homepage",
+  "targets": [
+    {
+      "target_id": "fixture-home",
+      "market": "JP",
+      "url": "https://airline.example/ja/"
+    }
+  ]
+}

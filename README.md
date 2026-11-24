@@ -24,7 +24,18 @@ tao capture american-en-home --manifest pilot/airlines-v0.2.0.json --region US -
 tao replay captures/american.json
 ```
 
-CIはPython 3.9・3.12・3.14で、再生テスト、Draft 2020-12のスキーマ検証、ローカル収集テスト、インストール済みCLIの動作確認を実行します。追加テストを手元で実行するには、開発環境で以下を実行してください。
+### 評価とJSONL出力
+
+公開ホームの最終URLがHTTPSかを、評価基準 `0.1.0` で判定します。書き出しには比較対象の台帳と、対象ごとに選んだ観測JSONを渡します。対象行ごとに判定、証拠参照、出典、欠測理由を、末尾に集計を出力します。下記はすべて合成データです。
+
+```sh
+python3 -m tao evaluate tests/fixtures/home.observation.json \
+  --surface consumer_homepage --rubric-version 0.1.0
+python3 -m tao export --manifest tests/fixtures/home.manifest.json \
+  --rubric-version 0.1.0 tests/fixtures/home.observation.json
+```
+
+CIはPython 3.9・3.12・3.14で、再生・評価・出力テスト、Draft 2020-12のスキーマ検証、ローカル収集テスト、インストール済みCLIの動作確認を実行します。追加テストを手元で実行するには、開発環境で以下を実行してください。
 
 ```sh
 python3 -m pip install '.[capture,test]'
