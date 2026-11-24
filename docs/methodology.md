@@ -4,7 +4,7 @@
 
 `対象台帳 → 収集または承認済み保存入力 → 証拠抽出 → 確度付与 → 評価 → 公開用データ`
 
-実装済みの範囲は、ローカル入力から証拠抽出・確度付与まで。CLIの入力はバイト列として固定する。取得条件を変えた実サイト観測は別のキャプチャとし、同一入力の再生と区別する。
+実装済みの範囲は、単発収集、ローカル入力からの証拠抽出、確度付与まで。CLIの入力はバイト列として固定する。取得条件を変えた実サイト観測は別のキャプチャとして記録する。
 
 ### スナップショット 1.0.0
 
@@ -23,6 +23,34 @@
 ### 観測出力 1.0.0
 
 出力は `capture` のメタデータ、元ファイルのSHA-256、抽出された証拠、確度注釈を持つ。HTML本文は出力に含めない。観測IDは `sha256:` に `出力スキーマ版:証拠ルール版:入力SHA-256` のASCIIバイト列のSHA-256を連結したもの。各レコードの `observation_id + signal_id` が証拠の参照キー。確度ポリシーの変更だけで観測IDは変わらない。JSONの整形やプロデューサーの版が変わる場合は、その版を揃えてバイト単位の再現を検証する。 [JSON Schema](../schemas/observation-v1.0.0.schema.json) · [期待出力](../tests/fixtures/home.observation.json)
+
+### 単発収集プロファイル public-http/1
+
+`tao capture TARGET_ID --manifest PATH --region CC --out PATH` は、利用条件の審査を運用者が記録したローカル台帳を使う。 `--region` は観測した地域を表す運用者申告の2文字コード。言語は対象の `locale` をリクエストに使う。台帳の審査担当者が、参照した利用条件のURL、対象ページ・転送先、取得と保存に必要な許可を確認して `admission: "approved"` を記録する。以下は架空の例。
+
+```json
+{
+  "target_id": "airline-en-home",
+  "locale": "en-US",
+  "url": "https://airline.example.com/en/",
+  "robots_url": "https://airline.example.com/robots.txt",
+  "terms_url": "https://airline.example.com/terms/",
+  "admission": "approved",
+  "review": {
+    "reviewed_on": "2026-11-23",
+    "scope": "single_get_and_local_projection",
+    "expected_title": "Example Airline",
+    "redirect_urls": []
+  }
+}
+```
+
+- 保留中の台帳項目は、接続なしで `not_collected` として保存する。未知または重複したID、未完成の審査記録、既存の出力先は入力エラーとして終了する。
+- HTTPSのGETを1ページずつ行い、`TAOObservatory/1` とプロジェクトのURLをUser-Agentに送る。同一オリジンの `/robots.txt` の応答が読めた場合だけ進め、対象URLと各承認済み転送先を照合する。転送は同一オリジン内で最大2回。robots取得不能や追加の取得間隔・時間帯の指定がある場合は保留にする。robots.txtの判定にはProtegoを使用する。 [RFC 9309](https://www.rfc-editor.org/rfc/rfc9309) · [Protego](https://github.com/scrapy/protego)
+- ソケットのタイムアウトと本文読み取りの予算は10秒。上限はrobots.txtが512 KiB、HTMLが1 MiB。 `Content-Encoding: identity` の応答を処理し、UTF-8と許容したHTTP宣言の文字コードで読み取る。再試行は次回の運用判断に委ねる。
+- 明示的な `head` 内の閉じられた `title` が1件あり、その内容が審査済みの文字列と一致した場合に採用する。同意画面などを除外するための確認であり、同じタイトルを使う別ページは、この条件だけでは識別できない。タイトルが確認できた途中打ち切りのHTMLは、最終URLのHTTPSだけを証拠にする。
+
+単発収集はスナップショット1.1.0と観測出力1.1.0を使用する。 `capture_context` は台帳版、対象ID、地域、言語、実行環境、User-Agent、Protego版、審査日、取得結果の理由を記録する。 `html` は対象ページの宣言の有無を再生するためにTAOが生成した最小HTML。元レスポンスはメモリ内で処理し、保存する文字列はソースに含まれた内容と独立した固定要素に限る。ハッシュはこの保存ファイルを参照する。後から別の宣言を調べるには、新しいプロファイルでの収集が必要になる。証拠ルール・確度ポリシーは1.0.0を使い、従来の再生結果と観測IDを維持する。 [観測JSON Schema 1.1](../schemas/observation-v1.1.0.schema.json)
 
 ### 証拠ルール 1.0.0
 

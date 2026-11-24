@@ -5,6 +5,7 @@
 | 候補 | 実現性・制約 | Phase 0の判断 |
 | --- | --- | --- |
 | Python標準ライブラリ | 保存済みJSONの読み込み、ハッシュ、HTML宣言の抽出を依存なしで実装可能。HTMLソースの軽量な解析なので、ブラウザのDOM修復やJS実行後の表示は対象外。 | 採用。自作の合成データで検証。 |
+| Protego | BSD-3-Clauseのrobots.txtパーサー。HTTP取得・転送・応答の扱いはTAO側で実装する。 | Phase 1の単発収集用オプションに採用。実行版を観測に記録し、再生は標準ライブラリで行う。 [公式リポジトリ](https://github.com/scrapy/protego) |
 | Wappalyzer商用API | 技術シグナルの照会。APIクレジット・レート制約があり、FAQではデータの共有・再販売を禁止している。個別契約が必要な用途の取り扱いは未確認。 | 取り込み・公開の依存から外す。 [API仕様](https://www.wappalyzer.com/docs/api/v2/basics/) · [利用条件](https://www.wappalyzer.com/terms/) · [API FAQ](https://www.wappalyzer.com/faq/api/) |
 | HTTP ArchiveのWappalyzerフォーク | GPL-3.0の公開リポジトリ。HTTP Archiveの検出定義を確認できる。技術名・照合結果は推定であり、ルールの変更により差分が生じる。 | 手法比較の候補。コード・定義の直接取り込みは見送り。将来使う場合は固定リビジョン、対象ファイルのライセンス、配布条件を確認。 [検出仕様](https://httparchive.org/docs/reference/structs/technology) · [LICENSE](https://github.com/HTTPArchive/wappalyzer/blob/main/LICENSE) |
 | HTTP Archive / Web Almanac | BigQueryで過去のラボ計測を参照できる。採録URL・月・端末は提供側の標本設計に依存。クエリ課金・処理量と、元の第三者素材を含む行の再配布条件を確認する必要がある。 | 背景比較の有力候補。クエリの試行とパイロット各URLの収録確認は未実施。原データ再配布は保留。利用時は対象月・テーブル・SQL・端末種別を固定し、ドライランと処理量上限を使う。 [BigQueryガイド](https://httparchive.org/docs/guides/getting-started) · [Web Almanac方法論](https://almanac.httparchive.org/en/2025/methodology) |
