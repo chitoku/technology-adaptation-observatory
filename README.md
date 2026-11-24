@@ -13,6 +13,13 @@ python3 -m unittest discover -s tests -v
 
 パッケージを環境にインストールした場合は `tao replay tests/fixtures/home.snapshot.json` でも実行できます。CLIは標準出力にJSONを出し、入力エラーの場合は標準エラーに理由を出して終了コード2を返します。実サイトの保存データは `captures/` に置き、公開前に別途レビューしてください。
 
+CIはPython 3.9・3.12・3.14で、再生テスト、Draft 2020-12のスキーマ検証、インストール済みCLIの動作確認を実行します。スキーマ検証を手元で実行するには、開発環境で以下を実行してください。
+
+```sh
+python3 -m pip install '.[test]'
+python3 -m unittest discover -s tests -p schema_contract.py -v
+```
+
 | 成果物 | 内容 |
 | --- | --- |
 | [Phase 0研究設計](docs/phase-0.md) | 研究仮説、観測方法、終了条件、段階計画 |

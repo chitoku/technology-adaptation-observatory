@@ -26,6 +26,21 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(first, subprocess.check_output(command))
         self.assertEqual(first, FIXTURE.with_name("home.observation.json").read_bytes())
 
+    def test_cli_replays_when_socket_operations_are_blocked(self):
+        code = """
+import runpy
+import sys
+
+def block_sockets(event, args):
+    if event.startswith("socket."):
+        raise RuntimeError("replay must work without socket operations")
+
+sys.addaudithook(block_sockets)
+runpy.run_module("tao", run_name="__main__", alter_sys=True)
+"""
+        result = subprocess.check_output([sys.executable, "-c", code, "replay", str(FIXTURE)])
+        self.assertEqual(result, FIXTURE.with_name("home.observation.json").read_bytes())
+
     def test_capture_identity_changes_with_input_bytes(self):
         raw = FIXTURE.read_bytes()
         self.assertNotEqual(replay(raw)["observation_id"], replay(raw + b"\n")["observation_id"])
