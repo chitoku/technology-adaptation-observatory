@@ -3,10 +3,9 @@
 from collections import Counter
 
 from .evaluate import CRITERION_ID, RESULTS, check_rubric, evaluate
-from .replay import REGION, TARGET_ID, VERSION, validate_url
+from .replay import HOME_SURFACE, REGION, TARGET_ID, VERSION, validate_url
 
 EXPORT_SCHEMA_VERSION = "0.1.0"
-HOME_SURFACE = "consumer_homepage"
 
 
 def _cohort(manifest):
@@ -66,6 +65,8 @@ def export_records(manifest, observations, rubric_version):
         assessment = evaluate(observation, rubric_version, surface=HOME_SURFACE)
         capture = observation["capture"]
         context = capture.get("capture_context", {})
+        if context.get("surface", HOME_SURFACE) != HOME_SURFACE:
+            raise ValueError("only consumer homepages can be exported in this cohort")
         target_id = by_url.get(capture["requested_url"])
         if target_id is None or context.get("target_id", target_id) != target_id:
             raise ValueError("observation URL or target ID does not match the cohort")

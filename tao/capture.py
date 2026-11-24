@@ -16,9 +16,10 @@ from urllib.parse import urljoin
 
 from .replay import (
     CAPTURE_SCHEMA_VERSION, LANGUAGE, MAX_HTML_BYTES,
-    PUBLIC_HTTP_PROFILE, REGION, REVIEW_DATE, TARGET_ID, VERSION,
+    PUBLIC_HTTP_PROFILE, PUBLIC_SURFACES, REGION, REVIEW_DATE, TARGET_ID, VERSION,
     PageDeclarations, read_json_file, validate_url,
 )
+from .stack import inspect_stack, unavailable_stack
 
 PRODUCT_TOKEN = "TAOObservatory"
 USER_AGENT = f"{PRODUCT_TOKEN}/1 (+https://github.com/chitoku/technology-adaptation-observatory)"
@@ -121,8 +122,9 @@ def _target_from_manifest(manifest_path, target_id):
     targets = manifest.get("targets")
     if not isinstance(manifest_version, str) or not VERSION.fullmatch(manifest_version):
         raise ValueError("invalid manifest version")
-    if manifest.get("surface") != "consumer_homepage" or not isinstance(targets, list):
-        raise ValueError("expected a consumer_homepage manifest with a targets list")
+    surface = manifest.get("surface")
+    if surface not in PUBLIC_SURFACES or not isinstance(targets, list):
+        raise ValueError("expected a public-surface manifest with a targets list")
     matches = [entry for entry in targets if isinstance(entry, dict) and entry.get("target_id") == target_id]
     if len(matches) != 1:
         raise ValueError("target ID must appear exactly once in the manifest")
@@ -134,7 +136,7 @@ def _target_from_manifest(manifest_path, target_id):
     if not isinstance(locale, str) or not LANGUAGE.fullmatch(locale):
         raise ValueError("invalid target locale")
     _public_url(target.get("url"))
-    return manifest_version, target
+    return manifest_version, surface, target
 
 
 def _approved_scope(target, now):
@@ -225,6 +227,7 @@ def _page_result(snapshot, url, response, expected_title):
         return failure("failed", "page_not_verified")
     if response.truncated:
         return _record(snapshot, "observed", "html_truncated", url, response.status, "truncated_html", "")
+    snapshot["capture_context"]["technology_stack"] = inspect_stack(response.body, html=html)
     return _record(
         snapshot, "observed", "page_verified", url, response.status,
         "complete_html", page.as_replay_html(),
@@ -256,7 +259,7 @@ def capture(target_id, manifest_path, region, request=get_document):
     """Capture exactly one reviewed target, or return an explicit non-observation."""
     if not REGION.fullmatch(region):
         raise ValueError("region must be a two-letter uppercase country code")
-    manifest_version, target = _target_from_manifest(manifest_path, target_id)
+    manifest_version, surface, target = _target_from_manifest(manifest_path, target_id)
     now = datetime.now(timezone.utc)
     snapshot = {
         "snapshot_schema_version": CAPTURE_SCHEMA_VERSION,
@@ -274,6 +277,8 @@ def capture(target_id, manifest_path, region, request=get_document):
             "robots_parser_version": None,
             "robots_status": None,
             "reviewed_on": None,
+            "surface": surface,
+            "technology_stack": unavailable_stack(),
         },
     }
     if target["admission"] != "approved":

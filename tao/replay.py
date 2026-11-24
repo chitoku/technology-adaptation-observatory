@@ -8,15 +8,19 @@ from html.parser import HTMLParser
 from urllib.parse import urlsplit
 
 from . import __version__
+from .stack import MAX_HTML_BYTES, validate_stack
 
 SNAPSHOT_SCHEMA_VERSION = "1.0.0"
 OBSERVATION_SCHEMA_VERSION = "1.0.0"
-CAPTURE_SCHEMA_VERSION = "1.1.0"
-PUBLIC_HTTP_PROFILE = "public-http/1"
+LEGACY_CAPTURE_SCHEMA_VERSION = "1.1.0"
+LEGACY_PUBLIC_HTTP_PROFILE = "public-http/1"
+CAPTURE_SCHEMA_VERSION = "1.2.0"
+PUBLIC_HTTP_PROFILE = "public-http/2"
+HOME_SURFACE = "consumer_homepage"
+PUBLIC_SURFACES = (HOME_SURFACE, "booking_entry", "public_membership")
 EVIDENCE_RULESET_VERSION = "1.0.0"
 CONFIDENCE_POLICY_VERSION = "1.0.0"
 MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
-MAX_HTML_BYTES = 1024 * 1024
 
 CAPTURE_FIELDS = {
     "snapshot_schema_version", "captured_at", "capture_profile", "requested_url",
@@ -90,9 +94,14 @@ def read_json_file(path, label):
         return read_json(stream.read(MAX_SNAPSHOT_BYTES + 1), label)
 
 
-def _validate_capture_context(context, access):
-    if not isinstance(context, dict) or context.keys() - {"robots_status", "robots_policy"} != CAPTURE_CONTEXT_FIELDS:
+def _validate_capture_context(context, access, body_kind, has_stack):
+    required = CAPTURE_CONTEXT_FIELDS | {"surface", "technology_stack"} if has_stack else CAPTURE_CONTEXT_FIELDS
+    if not isinstance(context, dict) or context.keys() - {"robots_status", "robots_policy"} != required:
         raise ValueError("invalid capture_context fields")
+    if has_stack:
+        if context["surface"] not in PUBLIC_SURFACES:
+            raise ValueError("invalid capture_context surface")
+        validate_stack(context["technology_stack"], body_kind)
     robots_status = context.get("robots_status")
     if robots_status is not None and (type(robots_status) is not int or not 100 <= robots_status <= 599):
         raise ValueError("invalid capture_context robots_status")
@@ -121,10 +130,12 @@ def _validate_capture_context(context, access):
 def validate_capture_metadata(metadata):
     if not isinstance(metadata, dict):
         raise ValueError("expected a capture metadata JSON object")
-    automated = metadata.get("snapshot_schema_version") == CAPTURE_SCHEMA_VERSION
-    expected_version = CAPTURE_SCHEMA_VERSION if automated else SNAPSHOT_SCHEMA_VERSION
+    version = metadata.get("snapshot_schema_version")
+    automated = version in (LEGACY_CAPTURE_SCHEMA_VERSION, CAPTURE_SCHEMA_VERSION)
+    if not automated and version != SNAPSHOT_SCHEMA_VERSION:
+        raise ValueError("unsupported snapshot schema")
     expected_fields = CAPTURE_FIELDS | {"capture_context"} if automated else CAPTURE_FIELDS
-    if metadata.keys() != expected_fields or metadata["snapshot_schema_version"] != expected_version:
+    if metadata.keys() != expected_fields:
         raise ValueError("expected the exact capture fields for a supported snapshot schema")
     timestamp = metadata["captured_at"]
     if not isinstance(timestamp, str) or not UTC_TIMESTAMP.fullmatch(timestamp):
@@ -134,7 +145,11 @@ def validate_capture_metadata(metadata):
     except ValueError as error:
         raise ValueError("captured_at has an invalid date or time") from error
 
-    profiles = (PUBLIC_HTTP_PROFILE,) if automated else ("synthetic/1", "manual-public-http/1")
+    profiles = {
+        SNAPSHOT_SCHEMA_VERSION: ("synthetic/1", "manual-public-http/1"),
+        LEGACY_CAPTURE_SCHEMA_VERSION: (LEGACY_PUBLIC_HTTP_PROFILE,),
+        CAPTURE_SCHEMA_VERSION: (PUBLIC_HTTP_PROFILE,),
+    }[version]
     if metadata["capture_profile"] not in profiles:
         raise ValueError("unrecognized capture_profile")
     validate_url(metadata["requested_url"], ("https",))
@@ -147,8 +162,6 @@ def validate_capture_metadata(metadata):
     access = metadata["access"]
     if access not in ("observed", "blocked", "failed", "not_collected"):
         raise ValueError("unrecognized access")
-    if automated:
-        _validate_capture_context(metadata["capture_context"], access)
     if access == "observed" and (
         status is None or not 200 <= status < 300 or metadata["final_url"] is None
     ):
@@ -161,7 +174,9 @@ def validate_capture_metadata(metadata):
         raise ValueError("unrecognized body_kind")
     if access != "observed" and body_kind != "unavailable":
         raise ValueError("only an observed page can include a response body")
-    return CAPTURE_SCHEMA_VERSION if automated else OBSERVATION_SCHEMA_VERSION
+    if automated:
+        _validate_capture_context(metadata["capture_context"], access, body_kind, version == CAPTURE_SCHEMA_VERSION)
+    return version if automated else OBSERVATION_SCHEMA_VERSION
 
 
 def _read_snapshot(raw):

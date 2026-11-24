@@ -8,6 +8,7 @@ from . import __version__
 from .evaluate import SURFACES, evaluate
 from .export import export_records
 from .replay import MAX_SNAPSHOT_BYTES, read_json_file, replay
+from .stack import MAX_HTML_BYTES, inspect_stack
 
 
 def main(argv=None):
@@ -16,6 +17,8 @@ def main(argv=None):
     subcommands = parser.add_subparsers(dest="command", required=True)
     replay_command = subcommands.add_parser("replay", help="emit an observation as JSON")
     replay_command.add_argument("snapshot", type=Path, help="local UTF-8 snapshot JSON file")
+    stack_command = subcommands.add_parser("stack", help="inspect technology evidence in local public HTML")
+    stack_command.add_argument("html", type=Path, help="local UTF-8 HTML file")
     capture_command = subcommands.add_parser("capture", help="capture one locally reviewed target")
     capture_command.add_argument("target_id")
     capture_command.add_argument("--manifest", type=Path, required=True)
@@ -41,6 +44,9 @@ def main(argv=None):
             with args.snapshot.open("rb") as stream:
                 snapshot = stream.read(MAX_SNAPSHOT_BYTES + 1)
             result = replay(snapshot)
+        elif args.command == "stack":
+            with args.html.open("rb") as stream:
+                result = inspect_stack(stream.read(MAX_HTML_BYTES + 1))
         elif args.command == "evaluate":
             observation = read_json_file(args.observation, "observation")
             result = evaluate(observation, args.rubric_version, args.surface)

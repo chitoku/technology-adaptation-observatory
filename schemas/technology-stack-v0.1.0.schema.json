@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TAO technology stack 0.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["layer", "schema_version", "ruleset_version", "coverage", "source_sha256", "evidence", "findings"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "layer": {"const": "static_html"},
+    "ruleset_version": {"const": "0.1.0"},
+    "coverage": {"enum": ["complete_html", "unavailable"]},
+    "source_sha256": {"anyOf": [{"type": "string", "pattern": "^[a-f0-9]{64}$"}, {"type": "null"}]},
+    "evidence": {
+      "type": "array",
+      "maxItems": 18,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "script_index", "version_label"],
+        "properties": {
+          "kind": {
+            "enum": [
+              "jquery_script",
+              "next_pages_data",
+              "next_static_script",
+              "react_cdn_release",
+              "react_dom_script",
+              "react_script"
+            ]
+          },
+          "script_index": {"type": "integer", "minimum": 1},
+          "version_label": {
+            "anyOf": [
+              {"type": "string", "pattern": "^(?:0|[1-9][0-9]{0,5})(?:\\.(?:0|[1-9][0-9]{0,5})){2}$"},
+              {"type": "null"}
+            ]
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["technology", "identity", "version_status", "version_labels", "evidence_kinds"],
+        "properties": {
+          "technology": {"enum": ["jquery", "nextjs", "react"]},
+          "identity": {"enum": ["referenced", "inferred", "unknown"]},
+          "version_status": {"enum": ["labelled", "multiple_labels", "unknown"]},
+          "version_labels": {
+            "type": "array",
+            "items": {"type": "string", "pattern": "^(?:0|[1-9][0-9]{0,5})(?:\\.(?:0|[1-9][0-9]{0,5})){2}$"},
+            "uniqueItems": true
+          },
+          "evidence_kinds": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "jquery_script",
+                "next_pages_data",
+                "next_static_script",
+                "react_cdn_release",
+                "react_dom_script",
+                "react_script"
+              ]
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    }
+  },
+  "if": {"properties": {"coverage": {"const": "unavailable"}}},
+  "then": {"properties": {"source_sha256": {"const": null}, "evidence": {"maxItems": 0}}},
+  "else": {"properties": {"source_sha256": {"type": "string"}}}
+}

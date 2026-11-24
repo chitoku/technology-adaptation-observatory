@@ -15,7 +15,7 @@ python3 -m unittest discover -s tests -v
 
 ### 単発収集と未取得の記録
 
-`capture` は台帳から1件を選び、審査済みの公開ホームだけを単発取得します。候補台帳の現行版では全社が審査または許可待ちです。次の例はAmericanの未取得理由を記録し、その記録を再生します。接続が発生する条件と審査記録の形式は観測仕様にあります。 [単発収集の仕様](docs/methodology.md#単発収集プロファイル-public-http1)
+`capture` は台帳から1件を選び、審査済みの公開ホームだけを単発取得します。候補台帳の現行版では全社が審査または許可待ちです。次の例はAmericanの未取得理由を記録し、その記録を再生します。接続が発生する条件と審査記録の形式は観測仕様にあります。 [単発収集の仕様](docs/methodology.md#単発収集プロファイル-public-http2)
 
 ```sh
 python3 -m pip install '.[capture]'
@@ -23,6 +23,14 @@ mkdir -p captures
 tao capture american-en-home --manifest pilot/airlines-v0.2.0.json --region US --out captures/american.json
 tao replay captures/american.json
 ```
+
+### 公開HTMLの技術判定
+
+```sh
+python3 -m tao stack tests/fixtures/stack.html
+```
+
+React・Next.js・jQueryを対象に、技術名と版の手掛かりを個別に記録します。単発収集の再生結果にも含まれます。 [検出ルール、観測レイヤーと既存ツール](docs/technology-stack.md)
 
 ### 評価とJSONL出力
 

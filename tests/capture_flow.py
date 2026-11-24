@@ -15,6 +15,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from tao.__main__ import main
 from tao.capture import MAX_HTML_BYTES, ROBOTS_BYTES, USER_AGENT, Response, _read_body, capture
+from tao.evaluate import RUBRIC_VERSION, evaluate
 from tao.replay import replay
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,7 @@ TITLE = "Example Airline"
 HTML = (
     b'<!doctype html><html lang="en"><head><title>Example Airline</title>'
     b'<meta name="viewport" content="width=device-width"></head>'
+    b'<script src="/scripts/jquery-3.7.1.min.js?token=private-script"></script>'
     b'<body><a href="/?private-query=unpublished#private-fragment">Secret body text</a>'
     b'<script>const secret = "private-credential";</script></body></html>'
 )
@@ -54,10 +56,10 @@ class CaptureTests(unittest.TestCase):
             },
         }
 
-    def write_manifest(self):
+    def write_manifest(self, surface="consumer_homepage"):
         self.manifest.write_text(json.dumps({
             "manifest_version": "0.2.0",
-            "surface": "consumer_homepage",
+            "surface": surface,
             "targets": [self.target],
         }), encoding="utf-8")
 
@@ -214,12 +216,34 @@ class CaptureTests(unittest.TestCase):
         snapshot, _ = self.run_capture(ALLOW, response)
         self.assert_reason(snapshot, "observed", "html_truncated")
         self.assertEqual(snapshot["html"], "")
+        self.assertEqual(snapshot["capture_context"]["technology_stack"]["coverage"], "unavailable")
         evidence = replay(json.dumps(snapshot).encode())["evidence"]
         self.assertEqual([row["state"] for row in evidence], ["present", "unknown", "unknown"])
         snapshot, _ = self.run_capture(ALLOW, Response(
             200, media_type="text/html", body=b"<html><head><title>Example", truncated=True,
         ))
         self.assert_reason(snapshot, "failed", "page_not_verified")
+
+    def test_booking_entry_is_not_graded_as_a_homepage(self):
+        self.write_manifest(surface="booking_entry")
+        snapshot = capture("airline-en-home", self.manifest, "US", Mock(side_effect=[ALLOW, DOCUMENT]))
+        observation = replay(json.dumps(snapshot).encode("utf-8"))
+        self.assertEqual(observation["capture"]["capture_context"]["surface"], "booking_entry")
+        self.assertEqual(
+            evaluate(observation, RUBRIC_VERSION, surface="consumer_homepage")["result"], "not_applicable",
+        )
+
+    def test_legacy_capture_still_replays_without_stack_evidence(self):
+        snapshot, _ = self.run_capture(ALLOW, DOCUMENT)
+        snapshot.update(snapshot_schema_version="1.1.0", capture_profile="public-http/1")
+        del snapshot["capture_context"]["surface"]
+        del snapshot["capture_context"]["technology_stack"]
+        observation = replay(json.dumps(snapshot).encode("utf-8"))
+        self.assertEqual(observation["observation_schema_version"], "1.1.0")
+        self.assertNotIn("technology_stack", observation["capture"]["capture_context"])
+        self.assertEqual(evaluate(observation, RUBRIC_VERSION)["result"], "met")
+        schema = json.loads((ROOT / "schemas" / "observation-v1.1.0.schema.json").read_bytes())
+        Draft202012Validator(schema, format_checker=FormatChecker()).validate(observation)
 
     def test_body_reader_caps_bytes_and_detects_short_responses(self):
         for payload, length, limit, expected in (
@@ -295,9 +319,11 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(main(["replay", str(out)]), 0)
         observation = json.loads(printed.getvalue())
         self.assertEqual([row["state"] for row in observation["evidence"]], ["present"] * 3)
-        self.assertEqual(observation["observation_schema_version"], "1.1.0")
+        self.assertEqual(observation["observation_schema_version"], "1.2.0")
         self.assertEqual(observation["capture"]["capture_context"]["region"], "US")
-        schema = json.loads((ROOT / "schemas" / "observation-v1.1.0.schema.json").read_bytes())
+        stack = observation["capture"]["capture_context"]["technology_stack"]
+        self.assertEqual(stack["findings"][0]["version_labels"], ["3.7.1"])
+        schema = json.loads((ROOT / "schemas" / "observation-v1.2.0.schema.json").read_bytes())
         Draft202012Validator.check_schema(schema)
         Draft202012Validator(schema, format_checker=FormatChecker()).validate(observation)
         observation_file = self.directory / "observed.json"
@@ -315,7 +341,7 @@ class CaptureTests(unittest.TestCase):
         data, summary = [json.loads(line) for line in exported.getvalue().splitlines()]
         self.assertEqual(data["assessment"], assessment)
         self.assertEqual(summary["valid_observation_count"], 1)
-        for marker in (b"secret-cookie", b"private-query", b"private-fragment", b"private-credential",
+        for marker in (b"secret-cookie", b"private-query", b"private-fragment", b"private-credential", b"private-script",
                        b"Secret body text", TITLE.encode()):
             self.assertNotIn(marker, raw)
             self.assertNotIn(marker, printed.getvalue().encode())

@@ -4,7 +4,7 @@ import hashlib
 import re
 
 from .replay import (
-    CONFIDENCE_POLICY_VERSION, EVIDENCE_RULESET_VERSION, PUBLIC_HTTP_PROFILE, VERSION,
+    CONFIDENCE_POLICY_VERSION, EVIDENCE_RULESET_VERSION, HOME_SURFACE, LEGACY_PUBLIC_HTTP_PROFILE, VERSION,
     observation_id, validate_capture_metadata, validate_url,
 )
 
@@ -12,7 +12,7 @@ RUBRIC_VERSION = "0.1.0"
 ASSESSMENT_SCHEMA_VERSION = "0.1.0"
 CRITERION_ID = "public_home.https_landing"
 SIGNAL_ID = "transport.landed_https"
-SURFACES = ("consumer_homepage", "other", "unknown")
+SURFACES = (HOME_SURFACE, "other", "unknown")
 RESULTS = ("met", "unmet", "unknown", "not_applicable")
 SHA256 = re.compile(r"[a-f0-9]{64}")
 SIGNAL_NAME = re.compile(r"[a-z_]+\.[a-z_]+")
@@ -106,9 +106,13 @@ def evaluate(observation, rubric_version, surface=None):
     """Return one standalone assessment; leave the source observation unchanged."""
     check_rubric(rubric_version)
     evidence, annotations = _validate_observation(observation)
-    if surface is None:
-        profile = observation["capture"]["capture_profile"]
-        surface = "consumer_homepage" if profile == PUBLIC_HTTP_PROFILE else "unknown"
+    capture = observation["capture"]
+    declared_surface = capture.get("capture_context", {}).get("surface")
+    if declared_surface is not None and declared_surface != HOME_SURFACE:
+        surface = "other"
+    elif surface is None:
+        is_home = declared_surface == HOME_SURFACE or capture["capture_profile"] == LEGACY_PUBLIC_HTTP_PROFILE
+        surface = HOME_SURFACE if is_home else "unknown"
     if surface not in SURFACES:
         raise ValueError("invalid observation surface")
     result, reason, rationale = _assess_https(observation, surface, evidence, annotations)
@@ -129,5 +133,5 @@ def evaluate(observation, rubric_version, surface=None):
         "reason": reason,
         "rationale": rationale,
         "evidence_refs": [{"observation_id": source_id, "signal_id": SIGNAL_ID}]
-        if surface == "consumer_homepage" and SIGNAL_ID in evidence else [],
+        if surface == HOME_SURFACE and SIGNAL_ID in evidence else [],
     }

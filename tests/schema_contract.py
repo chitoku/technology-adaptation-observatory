@@ -7,6 +7,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator, FormatChecker
 
 from tao.replay import replay
+from tao.stack import inspect_stack, unavailable_stack
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 SCHEMA = FIXTURES.parent.parent / "schemas" / "observation-v1.0.0.schema.json"
@@ -47,3 +48,13 @@ class ObservationSchemaTests(unittest.TestCase):
         self.assertEqual([tuple(error.absolute_path) for error in errors], [
             ("capture", "captured_at"),
         ])
+
+
+class StackSchemaTests(unittest.TestCase):
+    def test_stack_schema_covers_complete_and_unavailable_input(self):
+        path = SCHEMA.with_name("technology-stack-v0.1.0.schema.json")
+        schema = json.loads(path.read_bytes())
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        validator.validate(inspect_stack((FIXTURES / "stack.html").read_bytes()))
+        validator.validate(unavailable_stack())
