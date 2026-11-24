@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TAO observation 1.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observation_id",
+    "observation_schema_version",
+    "producer_version",
+    "evidence_ruleset_version",
+    "capture",
+    "source_sha256",
+    "evidence",
+    "confidence"
+  ],
+  "properties": {
+    "observation_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "observation_schema_version": {"const": "1.1.0"},
+    "producer_version": {"$ref": "#/$defs/version"},
+    "evidence_ruleset_version": {"$ref": "#/$defs/version"},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_schema_version",
+        "captured_at",
+        "capture_profile",
+        "requested_url",
+        "final_url",
+        "access",
+        "http_status",
+        "body_kind",
+        "capture_context"
+      ],
+      "properties": {
+        "snapshot_schema_version": {"const": "1.1.0"},
+        "captured_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        },
+        "capture_profile": {"const": "public-http/1"},
+        "requested_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+        "final_url": {"anyOf": [{"type": "string", "format": "uri", "pattern": "^https://"}, {"type": "null"}]},
+        "access": {"enum": ["observed", "blocked", "failed", "not_collected"]},
+        "http_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
+        "body_kind": {"enum": ["complete_html", "truncated_html", "other", "unavailable"]},
+        "capture_context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "target_id",
+            "manifest_version",
+            "region",
+            "accept_language",
+            "system",
+            "python_version",
+            "user_agent",
+            "robots_parser_version",
+            "reviewed_on",
+            "reason"
+          ],
+          "properties": {
+            "target_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"},
+            "manifest_version": {"$ref": "#/$defs/version"},
+            "region": {"type": "string", "pattern": "^[A-Z]{2}$"},
+            "accept_language": {"type": "string", "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8}){0,4}$"},
+            "system": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$"},
+            "python_version": {"$ref": "#/$defs/version"},
+            "user_agent": {"type": "string", "pattern": "^TAOObservatory/[ -~]+$", "maxLength": 200},
+          "robots_parser_version": {"anyOf": [{"$ref": "#/$defs/version"}, {"type": "null"}]},
+          "robots_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
+          "robots_policy": {"enum": ["standard", "best_effort"]},
+            "reviewed_on": {
+              "anyOf": [
+                {"type": "string", "format": "date", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+                {"type": "null"}
+              ]
+            },
+            "reason": {
+              "enum": [
+                "candidate",
+                "html_truncated",
+                "http_access_denied",
+                "http_error",
+                "network_error",
+                "non_html",
+                "page_not_verified",
+                "page_verified",
+                "pending_review",
+                "permission_required",
+                "redirect_limit",
+                "redirect_not_approved",
+                "robots_disallowed",
+                "robots_schedule_present",
+                "robots_unavailable",
+                "unsupported_encoding"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["signal_id", "locator", "state", "reason"],
+        "properties": {
+          "signal_id": {"$ref": "#/$defs/signal_id"},
+          "locator": {"type": "string", "pattern": "^/"},
+          "state": {"enum": ["present", "absent", "unknown"]},
+          "reason": {"type": "string", "pattern": "^[a-z_]+$"}
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_version", "annotations"],
+      "properties": {
+        "policy_version": {"$ref": "#/$defs/version"},
+        "annotations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["signal_id", "level"],
+            "properties": {"signal_id": {"$ref": "#/$defs/signal_id"}, "level": {"enum": ["direct", "unassessed"]}}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "signal_id": {"type": "string", "pattern": "^[a-z_]+\\.[a-z_]+$"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+  }
+}

@@ -11,6 +11,7 @@ requires-python = ">=3.9"
 dependencies = []
 
 [project.optional-dependencies]
+capture = ["Protego>=0.5,<0.8"]
 test = ["jsonschema[format-nongpl]>=4.18,<5"]
 
 [project.scripts]
